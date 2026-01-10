@@ -7,7 +7,6 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --upgrade pip setuptools wheel --break-system-packages
 RUN pip install -r /tmp/requirements.txt --break-system-packages
 
 ARG BUILD_ENV=desktop
