@@ -57,7 +57,7 @@ EOF
       echo "Installing build dependencies (libcap-dev, etc.)..."
       # Suppress output, auto-yes
       sudo apt-get update -qq || true
-      sudo apt-get install -y libcap-dev build-essential python3-dev libatlas-base-dev || echo "⚠️  Failed to install system packages. You may need entering password or manual install."
+      sudo apt-get install -y libcap-dev libcamera-dev build-essential python3-dev libatlas-base-dev || echo "⚠️  Failed to install system packages. You may need entering password or manual install."
   fi
 
   # Check/Install Docker on Linux
@@ -88,6 +88,8 @@ fi
 # Function to run pip inside venv
 run_pip() {
     "$VENV_DIR/bin/pip" install --upgrade pip
+    # Fix for PiDNG/Picamera2 build issues in recent setuptools
+    "$VENV_DIR/bin/pip" install "setuptools<70.0.0" wheel
     "$VENV_DIR/bin/pip" install "$@"
 }
 
