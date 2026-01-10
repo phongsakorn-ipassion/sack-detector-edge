@@ -2,4 +2,5 @@ opencv-python
 numpy<2.0.0
 ultralytics
 paho-mqtt
+shapely>=2.0.0
 
