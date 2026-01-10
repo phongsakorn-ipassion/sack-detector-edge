@@ -9,6 +9,8 @@ from ultralytics import YOLO, solutions
 from datetime import datetime
 from threading import Thread
 from queue import Queue
+import paho.mqtt.client as mqtt
+import json
 
 # Picamera2 import for Raspberry Pi
 try:
@@ -143,8 +145,11 @@ class StreamLoader:
 # =========================
 # CLI Arguments
 # =========================
+PROJECT_DIR = Path(__file__).parent.absolute()
+DEFAULT_MODEL_DIR = PROJECT_DIR / "models" / "detection.onnx"
+
 parser = argparse.ArgumentParser()
-parser.add_argument("--model", default=Path("models/detection.onnx"), help="Path to YOLO model")
+parser.add_argument("--model", default=DEFAULT_MODEL_DIR, help="Path to YOLO model")
 parser.add_argument("--source", default="picamera0", help="Source: usb0, picamera0, or video path")
 parser.add_argument("--conf", default=0.35, type=float, help="Confidence threshold")
 parser.add_argument("--resolution", default="640x480", help="Resolution WxH")
@@ -191,21 +196,41 @@ def main():
     if args.save:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         video_path = f"records/Output_{timestamp}.mp4"
-        # We assume 15fps avg for writing to be safe, or dynamic? 
-        # Let's fix at 30 for safety or use dynamic logic.
-        # Ideally, we start writer after FPS stabilizes, but for simplicity:
         writer = AsyncVideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (w, h))
         print(f"💾 Recording enabled: {video_path}")
+
+    # =========================
+    # MQTT Setup
+    # =========================
+    mq_host = os.environ.get('MQTT_HOST', 'mqtt')
+    mq_port = int(os.environ.get('MQTT_PORT', 1883))
+    mq_user = os.environ.get('MQTT_USER')
+    mq_pass = os.environ.get('MQTT_PASS')
+    client = None
+    
+    try:
+        client = mqtt.Client()
+        if mq_user and mq_pass:
+            client.username_pw_set(mq_user, mq_pass)
+            
+        # Use connect_async to prevent blocking the camera startup if MQTT is down
+        client.connect_async(mq_host, mq_port, 60)
+        client.loop_start() 
+        print(f"📡 MQTT Initialized (Async): {mq_host}:{mq_port}")
+    except Exception as e:
+        print(f"⚠️ MQTT Setup Failed: {e}")
+        client = None
 
     # Logic Config
     if args.line == "vertical":
         region_points = [(w // 2, 0), (w // 2, h)]
     else:
         region_points = [(0, h // 2), (w, h // 2)]
+    target_classes = [1] if args.headless else [0, 1]
     counter = solutions.ObjectCounter(
         model=model,
         region=region_points,
-        classes=[0, 1],
+        classes=target_classes,
         conf=args.conf,
         tracker=args.tracker,
         iou=args.iou,
@@ -250,6 +275,16 @@ def main():
                 elapsed = time.time() - t0
                 fps = frame_count / elapsed
                 print(f"FPS: {fps:.2f} | In: {counter.in_count} Out: {counter.out_count}")
+                
+                # Publish stats
+                if client:
+                    payload = json.dumps({
+                        "fps": round(fps, 2),
+                        "in": counter.in_count,
+                        "out": counter.out_count
+                    })
+                    client.publish("sack/stats", payload)
+                    
                 t0 = time.time()
                 frame_count = 0
 
