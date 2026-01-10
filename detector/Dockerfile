@@ -7,8 +7,19 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 COPY requirements.txt /tmp/requirements.txt
-# Install system dependencies needed for building wheels (e.g. picamera2, python-prctl)
-RUN apt-get update && apt-get install -y libcap-dev && rm -rf /var/lib/apt/lists/*
+# Install system dependencies needed for building wheels (specifically picamera2)
+# We need libcamera-dev, libdrm-dev, and build tools.
+RUN apt-get update && apt-get install -y \
+    libcap-dev \
+    libcamera-dev \
+    libdrm-dev \
+    libgnutls28-dev \
+    python3-dev \
+    build-essential \
+    pkg-config \
+    meson \
+    ninja-build \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install -r /tmp/requirements.txt --break-system-packages
 
 # RUN pip install --upgrade pip setuptools wheel --break-system-packages
