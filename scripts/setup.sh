@@ -59,6 +59,20 @@ EOF
       sudo apt-get update -qq || true
       sudo apt-get install -y libcap-dev build-essential python3-dev libatlas-base-dev || echo "⚠️  Failed to install system packages. You may need entering password or manual install."
   fi
+
+  # Check/Install Docker on Linux
+  if ! command -v docker &> /dev/null; then
+      echo "🐳 Docker not found. Installing Docker..."
+      curl -fsSL https://get.docker.com -o get-docker.sh
+      sudo sh get-docker.sh
+      rm get-docker.sh
+      
+      echo "🐳 Adding user to docker group..."
+      sudo usermod -aG docker "$USER"
+      echo "⚠️  You must restart your session (logout/login) for Docker permissions to take effect!"
+  else
+      echo "✅ Docker is already installed."
+  fi
 fi
 
 # --- DEPENDENCY INSTALLATION ---
