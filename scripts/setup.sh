@@ -82,7 +82,12 @@ echo "Checking Python environment..."
 # Create venv if missing
 if [ ! -d "$VENV_DIR" ]; then
     echo "Creating virtual environment at $VENV_DIR..."
-    python3 -m venv "$VENV_DIR"
+    if [ "$OS" != "Darwin" ]; then
+        # On Linux/Pi, we use --system-site-packages to access libcamera/picamera2 drivers
+        python3 -m venv --system-site-packages "$VENV_DIR"
+    else
+        python3 -m venv "$VENV_DIR"
+    fi
 fi
 
 # Function to run pip inside venv
