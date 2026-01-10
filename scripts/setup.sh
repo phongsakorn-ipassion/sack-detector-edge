@@ -47,6 +47,18 @@ services:
     volumes:
       - /run/udev:/run/udev:ro
 EOF
+
+  # Install system dependencies on Linux (required for building some wheels)
+  PYTHON_PKG="python3-dev" # Default
+  # Check if python3-dev is available, otherwise might be python3-devel (Fedora) or just implied.
+  # Assuming Debian/PiOS based on "Pi" context.
+  echo "Checking system dependencies..."
+  if command -v apt-get &> /dev/null; then
+      echo "Installing build dependencies (libcap-dev, etc.)..."
+      # Suppress output, auto-yes
+      sudo apt-get update -qq || true
+      sudo apt-get install -y libcap-dev build-essential python3-dev libatlas-base-dev || echo "⚠️  Failed to install system packages. You may need entering password or manual install."
+  fi
 fi
 
 # --- DEPENDENCY INSTALLATION ---
