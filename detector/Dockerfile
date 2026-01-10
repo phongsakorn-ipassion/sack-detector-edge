@@ -7,15 +7,15 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --upgrade pip setuptools wheel
-RUN pip install -r /tmp/requirements.txt
+RUN pip install --upgrade pip setuptools wheel --break-system-packages
+RUN pip install -r /tmp/requirements.txt --break-system-packages
 
 ARG BUILD_ENV=desktop
 COPY requirements-pi.txt /tmp/requirements-pi.txt
-RUN if [ "$BUILD_ENV" = "pi" ]; then pip install -r /tmp/requirements-pi.txt; fi
+RUN if [ "$BUILD_ENV" = "pi" ]; then pip install -r /tmp/requirements-pi.txt --break-system-packages; fi
 
 # Copy your detection code into /app before building.
 COPY . /app
 
 # Change this to your real entrypoint when code is ready.
-CMD ["python", "-u", "main.py"]
+CMD ["python", "-u", "detector.py", "--source", "picamera0", "--headless"]
