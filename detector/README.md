@@ -2,6 +2,18 @@
 
 This guide explains how to run the `detector.py` script for object detection and counting.
 
+## Project Structure
+
+```text
+.
+├── detector.py         # Core detection engine (YOLO + MQTT + Camera)
+├── Dockerfile          # ARM64/Pi-optimized Docker image build
+├── models/             # YOLO weights and ONNX exported models
+├── records/            # Directory for saved video logs (mp4)
+├── requirements.txt    # Shared Python dependencies (Opencv, YOLO)
+└── requirements-pi.txt # Raspberry Pi specific drivers (Picamera2)
+```
+
 ## 1. Setup
 
 Run the setup script to create a virtual environment (`.venv`) and install dependencies:

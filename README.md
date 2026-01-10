@@ -2,6 +2,24 @@
 
 This is a minimal Docker image scaffold based on `ultralytics/ultralytics:latest-arm64`.
 
+## Project Structure
+
+```text
+.
+├── detector/           # Edge Detection Service (AI counting, MQTT)
+│   ├── detector.py     # Main application logic
+│   ├── Dockerfile      # Deployment container definition
+│   ├── models/         # YOLO detection models (.onnx / .pt)
+│   ├── requirements.txt# Python dependencies
+│   └── requirements-pi.txt # Pi-specific dependencies (e.g. Picamera2)
+├── mosquitto/          # Local MQTT Broker (Mosquitto)
+├── nodered/            # Dashboard and Workflows (Node-RED)
+├── scripts/            # Environment setup and utility scripts
+├── sqlite/             # Database storage for counting events
+├── docker-compose.yml  # Root orchestrator for all services
+└── .env                # Generated environment config
+```
+
 ## Docker Compose
 ```bash
 bash scripts/setup.sh
