@@ -1,0 +1,22 @@
+# System
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# Project Outputs
+runs/
+records/
+detector/records/
+output/
+*.mp4
+*.avi
+
+# Docker / Environment
+.env
+!env.example
+docker-compose.override.yml

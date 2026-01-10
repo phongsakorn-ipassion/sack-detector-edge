@@ -1,0 +1,52 @@
+services:
+  detector:
+    build:
+      context: ./detector
+      args:
+        BUILD_ENV: ${BUILD_ENV:-desktop}
+    image: sack-detector:edge
+    container_name: sack-detector
+    restart: unless-stopped
+    volumes:
+      - ./detector:/app
+    environment:
+      - MQTT_HOST=${MQTT_HOST:-mqtt}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      - MQTT_USER=${MQTT_USER:-}
+      - MQTT_PASS=${MQTT_PASS:-}
+    depends_on:
+      - mqtt
+      - sqlite
+
+  nodered:
+    image: nodered/node-red:latest
+    container_name: nodered
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    volumes:
+      - ./nodered/data:/data
+      - ./sqlite/data:/data/sqlite
+    depends_on:
+      - mqtt
+      - sqlite
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  sqlite:
+    image: alpine:latest
+    container_name: sqlite
+    restart: unless-stopped
+    volumes:
+      - ./sqlite/data:/data
+    command: [ "sh", "-c", "apk add --no-cache sqlite && sqlite3 /data/app.db \"pragma journal_mode=WAL;\" && tail -f /dev/null" ]
