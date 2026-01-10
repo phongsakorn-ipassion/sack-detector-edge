@@ -6,7 +6,6 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 
-COPY requirements.txt /tmp/requirements.txt
 # Install system dependencies needed for building wheels (specifically picamera2)
 # We need libcamera-dev, libdrm-dev, and build tools.
 RUN apt-get update && apt-get install -y \
@@ -20,9 +19,11 @@ RUN apt-get update && apt-get install -y \
     meson \
     ninja-build \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install -r /tmp/requirements.txt --break-system-packages
 
-# RUN pip install --upgrade pip setuptools wheel --break-system-packages
+# Fix for "canonicalize_version" error in PiDNG/picamera2 build (setuptools>=70 issues)
+RUN pip install "setuptools<70.0.0" wheel --break-system-packages
+
+RUN pip install -r /tmp/requirements.txt --break-system-packages
 
 ARG BUILD_ENV=desktop
 COPY requirements-pi.txt /tmp/requirements-pi.txt
