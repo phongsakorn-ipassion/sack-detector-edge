@@ -7,7 +7,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 COPY requirements.txt /tmp/requirements.txt
+# Install system dependencies needed for building wheels (e.g. picamera2, python-prctl)
+RUN apt-get update && apt-get install -y libcap-dev && rm -rf /var/lib/apt/lists/*
 RUN pip install -r /tmp/requirements.txt --break-system-packages
+
+# RUN pip install --upgrade pip setuptools wheel --break-system-packages
 
 ARG BUILD_ENV=desktop
 COPY requirements-pi.txt /tmp/requirements-pi.txt
