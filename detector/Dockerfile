@@ -6,6 +6,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1
 
+COPY requirements.txt /tmp/requirements.txt
 # Install system dependencies needed for building wheels (specifically picamera2)
 # We need libcamera-dev, libdrm-dev, and build tools.
 RUN apt-get update && apt-get install -y \
