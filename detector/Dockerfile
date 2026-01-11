@@ -14,6 +14,14 @@ RUN apt-get update && apt-get install -y \
     libcamera-dev \
     libdrm-dev \
     libgnutls28-dev \
+    # FFmpeg dependencies for PyAV (required by picamera2)
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libavutil-dev \
+    libavdevice-dev \
+    libavfilter-dev \
+    libswresample-dev \
     python3-dev \
     build-essential \
     pkg-config \
