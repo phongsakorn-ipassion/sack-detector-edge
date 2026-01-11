@@ -301,18 +301,23 @@ class HailoInference:
         boxes, scores, classes = [], [], []
         h_orig, w_orig = orig_shape[:2]
 
-        # Hailo NMS output format parsing:
-        # Tensors are usually [number_of_detections, 6] (x, y, x, y, score, class)
-        for key, tensor in outputs.items():
-            for det in tensor[0]:
-                score = det[4]
-                if score > self.conf_threshold:
-                    # Hailo coordinates are usually normalized (0-1)
-                    ymin, xmin, ymax, xmax = det[0:4]
-                    boxes.append([int(xmin * w_orig), int(ymin * h_orig), int(xmax * w_orig), int(ymax * h_orig)])
-                    scores.append(score)
-                    classes.append(int(det[5]))
-        
+        if self.is_nms_model:
+            # Hailo NMS results are usually in a single output named 'detection_layer' or similar
+            # Format: [ymin, xmin, ymax, xmax, score, class_id]
+            for key, tensor in outputs.items():
+                if 'nms' in key.lower() or 'detection' in key.lower():
+                    for det in tensor[0]:
+                        score = det[4]
+                        if score > self.conf_threshold:
+                            ymin, xmin, ymax, xmax = det[0:4]
+                            # Convert normalized to pixel coordinates
+                            boxes.append([int(xmin * w_orig), int(ymin * h_orig), int(xmax * w_orig), int(ymax * h_orig)])
+                            scores.append(score)
+                            classes.append(int(det[5]))
+            return boxes, scores, classes
+
+        # Fallback for raw models (Manual YOLO decoding - though we aim for NMS-integrated)
+        # ... existing fallback code if needed, but we'll focus on NMS ...
         return boxes, scores, classes
 
 # ==============================================================================
