@@ -1,2 +1,3 @@
 picamera2
-scipy
+av==12.3.0
+scipy>=1.13.0

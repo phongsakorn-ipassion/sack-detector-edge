@@ -22,15 +22,18 @@ RUN apt-get update && apt-get install -y \
     libavdevice-dev \
     libavfilter-dev \
     libswresample-dev \
+    libpostproc-dev \
+    # Build tools
     python3-dev \
+    python3-pip \
     build-essential \
     pkg-config \
     meson \
     ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
-# Fix for "canonicalize_version" error in PiDNG/picamera2 build (setuptools>=70 issues)
-RUN pip install "setuptools<70.0.0" wheel --break-system-packages
+# Fix for "canonicalize_version" error in PiDNG/picamera2 build
+RUN pip install "setuptools<70.0.0" wheel "cython<3.0.0" --break-system-packages
 
 RUN pip install -r /tmp/requirements.txt --break-system-packages
 
