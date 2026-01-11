@@ -276,17 +276,16 @@ class HailoInference:
         resized = self.preprocess(frame)
         
         # Prepare input dict. Ensure dtype and shape match.
-        # We try to pass as is first, then expanded if it fails.
         input_data = {self.input_info.name: resized}
         
         try:
-            # Explicitly set batch_size=1 if possible
-            outputs = self.infer_pipeline.infer(input_data)
+            # CRITICAL: Explicitly pass batch_size=1 for single-image inference
+            outputs = self.infer_pipeline.infer(input_data, batch_size=1)
         except Exception as e:
-            # If 3D fails, try 4D (Batch size 1)
+            # If 3D fails, try 4D (Batch size 1) - though this shouldn't happen with batch_size param
             if "match the frame count" in str(e):
                 input_data[self.input_info.name] = np.expand_dims(resized, axis=0)
-                outputs = self.infer_pipeline.infer(input_data)
+                outputs = self.infer_pipeline.infer(input_data, batch_size=1)
             else:
                 raise e
                 
