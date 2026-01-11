@@ -279,13 +279,23 @@ class HailoInference:
         input_data = {self.input_info.name: resized}
         
         try:
-            # CRITICAL: Explicitly pass batch_size=1 for single-image inference
-            outputs = self.infer_pipeline.infer(input_data, batch_size=1)
+            # HailoRT API differs across versions; some don't accept batch_size.
+            try:
+                outputs = self.infer_pipeline.infer(input_data, batch_size=1)
+            except TypeError as e:
+                if "batch_size" not in str(e):
+                    raise
+                outputs = self.infer_pipeline.infer(input_data)
         except Exception as e:
             # If 3D fails, try 4D (Batch size 1) - though this shouldn't happen with batch_size param
             if "match the frame count" in str(e):
                 input_data[self.input_info.name] = np.expand_dims(resized, axis=0)
-                outputs = self.infer_pipeline.infer(input_data, batch_size=1)
+                try:
+                    outputs = self.infer_pipeline.infer(input_data, batch_size=1)
+                except TypeError as e:
+                    if "batch_size" not in str(e):
+                        raise
+                    outputs = self.infer_pipeline.infer(input_data)
             else:
                 raise e
                 
