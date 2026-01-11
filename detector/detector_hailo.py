@@ -470,7 +470,9 @@ def main():
     else:
         line_points = [(0, h // 2), (w, h // 2)]
     
-    target_classes = [1] if args.headless else [0, 1]
+    # For the class = [0] is Person, class = 1] is Sack
+    #target_classes = [1] if args.headless else [0, 1]
+    target_classes = [0, 1]
     counter = SackCounter(line_points, classes_to_count=target_classes)
 
     # 3. Setup Recording
