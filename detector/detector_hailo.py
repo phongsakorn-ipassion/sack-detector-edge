@@ -26,13 +26,7 @@ try:
                                 InputVStreamParams, OutputVStreamParams, FormatType)
     HAILO_AVAILABLE = True
 except ImportError:
-    HAILO_AVAILABLE = False
-
-# ==============================================================================
-# Configuration
-# ==============================================================================
-# Hailo Inference
-HEF_PATH = Path("models/detection.hef") # Path to HEF model              
+    HAILO_AVAILABLE = False            
 
 # ==============================================================================
 # Reused Utilities (StreamLoader, AsyncVideoWriter)
@@ -451,6 +445,7 @@ class SackCounter:
 # ==============================================================================
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--hef", default=Path("models/detection.hef"), help="Path to HEF model")
     parser.add_argument("--source", default="picamera0", help="Source: usb0, picamera0, or video path")
     parser.add_argument("--conf", default=0.35, type=float, help="Confidence threshold")
     parser.add_argument("--resolution", default="640x480", help="Resolution WxH")
@@ -505,13 +500,13 @@ def main():
     except: pass
 
     # 5. Inference Loop
-    print(f"🔄 Initializing Hailo-8L with: {HEF_PATH}")
+    print(f"🔄 Initializing Hailo-8L with: {args.hef}")
     if not HAILO_AVAILABLE:
         print("❌ HailoRT not found. Exiting.")
         return
 
     try:
-        with HailoInference(str(HEF_PATH), conf_threshold=args.conf) as model:
+        with HailoInference(str(args.hef), conf_threshold=args.conf) as model:
             t0 = time.time()
             frame_cnt = 0
             
