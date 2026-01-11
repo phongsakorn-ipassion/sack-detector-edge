@@ -233,7 +233,11 @@ class HailoInference:
         
         # Get input dimensions
         self.input_info = self.hef.get_input_vstream_infos()[0]
-        self.input_shape = (self.input_info.shape.height, self.input_info.shape.width)
+        if hasattr(self.input_info.shape, 'height'):
+            self.input_shape = (self.input_info.shape.height, self.input_info.shape.width)
+        else:
+            # Handle case where shape is a tuple (height, width, features)
+            self.input_shape = (self.input_info.shape[0], self.input_info.shape[1])
         
         # Initialize the infer pipeline once (performance)
         self.infer_pipeline = InferVStreams(self.network_group, self.input_vstreams_params, self.output_vstreams_params)
@@ -379,7 +383,10 @@ def main():
     mq_port = int(os.environ.get('MQTT_PORT', 1883))
     mq_user = os.environ.get('MQTT_USER')
     mq_pass = os.environ.get('MQTT_PASS')
-    client = mqtt.Client()
+    try:
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    except AttributeError:
+        client = mqtt.Client() # Fallback for older paho-mqtt
     if mq_user and mq_pass:
         client.username_pw_set(mq_user, mq_pass)
     try:
