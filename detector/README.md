@@ -83,8 +83,9 @@ python detector_hailo.py --hef models/detection.hef --source picamera0 --headles
 
 - Counting is line-crossing based, not raw detection count.
 - Default class mapping: `0` = Person, `1` = Sack (change via `--classes`).
-- A count log is written to `records/Count_<timestamp>.txt` with rows:
+- A count log is written to `records/logs/Count_<timestamp>.txt` with rows:
   - `timestamp,current_count,stacked_count`
+- Videos (when `--save`) are stored in `records/videos/`.
 - MQTT publishes updates to `sack/stats` at most every 3 seconds and only when counts change.
 
 ## 6. Examples

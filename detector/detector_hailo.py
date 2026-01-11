@@ -29,6 +29,15 @@ except ImportError:
     HAILO_AVAILABLE = False            
 
 # ==============================================================================
+# Paths
+# ==============================================================================
+PROJECT_DIR = Path(__file__).parent.resolve()
+HEF_PATH = PROJECT_DIR / "models" / "detection.hef"
+RECORDS_DIR = PROJECT_DIR / "records"
+LOGS_DIR = RECORDS_DIR / "logs"
+VIDEOS_DIR = RECORDS_DIR / "videos"
+
+# ==============================================================================
 # Reused Utilities (StreamLoader, AsyncVideoWriter)
 # ==============================================================================
 # NOTE: In a real refactor, these should be in a common 'utils.py'
@@ -142,7 +151,8 @@ class StreamLoader:
 # ==============================================================================
 class AsyncCountLogger:
     def __init__(self, path, queue_size=256):
-        self.path = path
+        self.path = str(path)
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self.queue = Queue(maxsize=queue_size)
         self.stopped = False
         self.thread = Thread(target=self.update, args=())
@@ -482,7 +492,7 @@ class SackCounter:
 # ==============================================================================
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hef", default=Path("models/detection.hef"), help="Path to HEF model")
+    parser.add_argument("--hef", default=str(HEF_PATH), help="Path to HEF model")
     parser.add_argument("--source", default="picamera0", help="Source: usb0, picamera0, or video path")
     parser.add_argument("--conf", default=0.35, type=float, help="Confidence threshold")
     parser.add_argument("--resolution", default="640x480", help="Resolution WxH")
@@ -523,14 +533,14 @@ def main():
     last_logged_total = 0
     if args.save:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        os.makedirs("records/videos", exist_ok=True)
-        video_path = f"records/videos/Hailo_{timestamp}.mp4"
-        writer = AsyncVideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (w, h))
+        VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+        video_path = VIDEOS_DIR / f"Hailo_{timestamp}.mp4"
+        writer = AsyncVideoWriter(str(video_path), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (w, h))
         print(f"💾 Recording to: {video_path}")
     if logger is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        os.makedirs("records/logs", exist_ok=True)
-        log_path = f"records/logs/Count_{timestamp}.txt"
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = LOGS_DIR / f"Count_{timestamp}.txt"
         logger = AsyncCountLogger(log_path)
         logger.write("timestamp,current_count,stacked_count\n")
 
@@ -552,13 +562,22 @@ def main():
     except: pass
 
     # 5. Inference Loop
-    print(f"🔄 Initializing Hailo-8L with: {args.hef}")
+    hef_path = Path(args.hef).expanduser()
+    if not hef_path.is_file() and not hef_path.is_absolute():
+        candidate = PROJECT_DIR / args.hef
+        if candidate.is_file():
+            hef_path = candidate
+    if not hef_path.is_file():
+        print(f"❌ HEF not found: {hef_path}")
+        return
+
+    print(f"🔄 Initializing Hailo-8L with: {hef_path}")
     if not HAILO_AVAILABLE:
         print("❌ HailoRT not found. Exiting.")
         return
 
     try:
-        with HailoInference(str(args.hef), conf_threshold=args.conf) as model:
+        with HailoInference(str(hef_path), conf_threshold=args.conf) as model:
             t0 = time.time()
             frame_cnt = 0
             last_mqtt_ts = time.time()
