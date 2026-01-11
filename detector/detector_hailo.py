@@ -29,6 +29,12 @@ except ImportError:
     HAILO_AVAILABLE = False
 
 # ==============================================================================
+# Configuration
+# ==============================================================================
+# Hailo Inference
+HEF_PATH = Path("models/detection.hef") # Path to HEF model              
+
+# ==============================================================================
 # Reused Utilities (StreamLoader, AsyncVideoWriter)
 # ==============================================================================
 # NOTE: In a real refactor, these should be in a common 'utils.py'
@@ -445,7 +451,6 @@ class SackCounter:
 # ==============================================================================
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hef", default=Path("models/detection.hef"), help="Path to HEF model")
     parser.add_argument("--source", default="picamera0", help="Source: usb0, picamera0, or video path")
     parser.add_argument("--conf", default=0.35, type=float, help="Confidence threshold")
     parser.add_argument("--resolution", default="640x480", help="Resolution WxH")
@@ -500,13 +505,13 @@ def main():
     except: pass
 
     # 5. Inference Loop
-    print(f"🔄 Initializing Hailo-8L with: {args.hef}")
+    print(f"🔄 Initializing Hailo-8L with: {HEF_PATH}")
     if not HAILO_AVAILABLE:
         print("❌ HailoRT not found. Exiting.")
         return
 
     try:
-        with HailoInference(str(args.hef), conf_threshold=args.conf) as model:
+        with HailoInference(str(HEF_PATH), conf_threshold=args.conf) as model:
             t0 = time.time()
             frame_cnt = 0
             
@@ -521,6 +526,9 @@ def main():
                 # Tracking & Counting
                 tracked_objects = counter.update(boxes, classes)
 
+                # Summary text for logs and overlays
+                info = f"In: {counter.in_count} Out: {counter.out_count}"
+
                 # Annotation (only if NOT headless or saving)
                 if not args.headless or args.save:
                     # Draw Line
@@ -534,7 +542,6 @@ def main():
                         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
                     # Draw Tracked Counts
-                    info = f"In: {counter.in_count} Out: {counter.out_count}"
                     cv2.putText(frame, info, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
 
                 # Save / Display
