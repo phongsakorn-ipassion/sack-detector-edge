@@ -257,13 +257,23 @@ class HailoInference:
 
         # Initialize the infer pipeline
         self.infer_pipeline = InferVStreams(self.network_group, self.input_vstreams_params, self.output_vstreams_params)
+        self._ng_ctx = None
 
     def __enter__(self):
+        # Activate the network group before running inference.
+        try:
+            self._ng_ctx = self.network_group.activate(self.network_group_params)
+        except TypeError:
+            self._ng_ctx = self.network_group.activate()
+        if self._ng_ctx is not None:
+            self._ng_ctx.__enter__()
         self.infer_pipeline.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.infer_pipeline.__exit__(exc_type, exc_val, exc_tb)
+        if self._ng_ctx is not None:
+            self._ng_ctx.__exit__(exc_type, exc_val, exc_tb)
         self.target.release()
 
     def preprocess(self, frame):
