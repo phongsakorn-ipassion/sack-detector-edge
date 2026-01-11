@@ -524,13 +524,13 @@ def main():
     if args.save:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs("records", exist_ok=True)
-        video_path = f"records/Hailo_{timestamp}.mp4"
+        video_path = f"records/videos/Hailo_{timestamp}.mp4"
         writer = AsyncVideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (w, h))
         print(f"💾 Recording to: {video_path}")
     if logger is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs("records", exist_ok=True)
-        log_path = f"records/Count_{timestamp}.txt"
+        log_path = f"records/logs/Count_{timestamp}.txt"
         logger = AsyncCountLogger(log_path)
         logger.write("timestamp,current_count,stacked_count\n")
 
