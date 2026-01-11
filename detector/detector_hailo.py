@@ -274,28 +274,31 @@ class HailoInference:
     def run(self, frame):
         # Resize to model input size
         resized = self.preprocess(frame)
-        
-        # Prepare input dict. Ensure dtype and shape match.
-        input_data = {self.input_info.name: resized}
-        
+
+        # Prepare input tensor. Ensure dtype and shape match (N,H,W,C).
+        input_tensor = np.ascontiguousarray(resized, dtype=np.uint8)
+        if input_tensor.ndim == 3:
+            input_tensor = np.expand_dims(input_tensor, axis=0)
+        input_data = {self.input_info.name: input_tensor}
+
         try:
-            # HailoRT API differs across versions; some don't accept batch_size.
+            # HailoRT API differs across versions; prefer no batch_size.
             try:
-                outputs = self.infer_pipeline.infer(input_data, batch_size=1)
+                outputs = self.infer_pipeline.infer(input_data)
             except TypeError as e:
                 if "batch_size" not in str(e):
                     raise
-                outputs = self.infer_pipeline.infer(input_data)
+                outputs = self.infer_pipeline.infer(input_data, batch_size=input_tensor.shape[0])
         except Exception as e:
             # If 3D fails, try 4D (Batch size 1) - though this shouldn't happen with batch_size param
             if "match the frame count" in str(e):
-                input_data[self.input_info.name] = np.expand_dims(resized, axis=0)
+                input_data[self.input_info.name] = np.expand_dims(input_tensor, axis=0)
                 try:
-                    outputs = self.infer_pipeline.infer(input_data, batch_size=1)
+                    outputs = self.infer_pipeline.infer(input_data)
                 except TypeError as e:
                     if "batch_size" not in str(e):
                         raise
-                    outputs = self.infer_pipeline.infer(input_data)
+                    outputs = self.infer_pipeline.infer(input_data, batch_size=1)
             else:
                 raise e
                 
@@ -315,14 +318,32 @@ class HailoInference:
             # Format: [ymin, xmin, ymax, xmax, score, class_id]
             for key, tensor in outputs.items():
                 if 'nms' in key.lower() or 'detection' in key.lower():
-                    for det in tensor[0]:
-                        score = det[4]
-                        if score > self.conf_threshold:
-                            ymin, xmin, ymax, xmax = det[0:4]
-                            # Convert normalized to pixel coordinates
-                            boxes.append([int(xmin * w_orig), int(ymin * h_orig), int(xmax * w_orig), int(ymax * h_orig)])
-                            scores.append(score)
-                            classes.append(int(det[5]))
+                    arr = np.asarray(tensor)
+                    if arr.size == 0:
+                        continue
+                    # Common Hailo NMS format: (classes, 5, max_det)
+                    if arr.ndim == 3 and arr.shape[1] == 5:
+                        num_classes, _, max_det = arr.shape
+                        for class_id in range(num_classes):
+                            for det_idx in range(max_det):
+                                score = arr[class_id, 4, det_idx]
+                                if score > self.conf_threshold:
+                                    ymin, xmin, ymax, xmax = arr[class_id, 0:4, det_idx]
+                                    boxes.append([int(xmin * w_orig), int(ymin * h_orig), int(xmax * w_orig), int(ymax * h_orig)])
+                                    scores.append(float(score))
+                                    classes.append(int(class_id))
+                        continue
+                    # Generic formats: (num_det, 6) or (batch, num_det, 6)
+                    if arr.ndim == 3 and arr.shape[-1] >= 6:
+                        arr = arr.reshape(-1, arr.shape[-1])
+                    if arr.ndim == 2 and arr.shape[1] >= 6:
+                        for det in arr:
+                            score = det[4]
+                            if score > self.conf_threshold:
+                                ymin, xmin, ymax, xmax = det[0:4]
+                                boxes.append([int(xmin * w_orig), int(ymin * h_orig), int(xmax * w_orig), int(ymax * h_orig)])
+                                scores.append(float(score))
+                                classes.append(int(det[5]))
             return boxes, scores, classes
 
         # Fallback for raw models (Manual YOLO decoding - though we aim for NMS-integrated)
