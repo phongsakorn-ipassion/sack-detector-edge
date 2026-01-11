@@ -78,6 +78,8 @@ python detector_hailo.py --hef models/detection.hef --source picamera0 --headles
 | `--headless` | `False` | Run without GUI window (Recommended for Pi). |
 | `--line` | `vertical` | Region line orientation. Options: `vertical`, `horizontal`. |
 | `--classes` | `1` | Comma-separated class IDs to count (e.g., `1` or `0,1`). |
+| `--debug` | `False` | Print periodic detection summaries (raw detections per class). |
+| `--log-detections` | `False` | Write raw detection counts to a log file. |
 
 ## 5. Hailo Counting + Logs
 
@@ -85,6 +87,8 @@ python detector_hailo.py --hef models/detection.hef --source picamera0 --headles
 - Default class mapping: `0` = Person, `1` = Sack (change via `--classes`).
 - A count log is written to `records/logs/Count_<timestamp>.txt` with rows:
   - `timestamp,current_count,stacked_count`
+- If `--log-detections` is enabled, raw detections are logged to:
+  - `records/logs/Detections_<timestamp>.txt` with rows `timestamp,total_detections,class_counts`
 - Videos (when `--save`) are stored in `records/videos/`.
 - MQTT publishes updates to `sack/stats` at most every 3 seconds and only when counts change.
 
@@ -113,4 +117,9 @@ python detector_hailo.py --hef models/detection.hef --source picamera0 --headles
 **Hailo-8L counting both classes:**
 ```bash
 python detector_hailo.py --hef models/detection.hef --source picamera0 --classes 0,1 --headless
+```
+
+**Hailo-8L with detection debug + raw detection logging:**
+```bash
+python detector_hailo.py --hef models/detection.hef --source picamera0 --debug --log-detections
 ```

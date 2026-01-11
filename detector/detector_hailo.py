@@ -324,9 +324,9 @@ class HailoInference:
         self.target.release()
 
     def preprocess(self, frame):
-        # YOLOv8 expectation: Resized, RGB
+        # YOLO expectation: resized RGB
         resized = cv2.resize(frame, (self.input_shape[1], self.input_shape[0]))
-        return resized
+        return cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
 
     def run(self, frame):
         # Resize to model input size
@@ -500,6 +500,8 @@ def main():
     parser.add_argument("--headless", action="store_true", help="Run without GUI")
     parser.add_argument("--line", default="vertical", choices=["vertical", "horizontal"], help="Line orientation")
     parser.add_argument("--classes", default="1", help="Comma-separated class IDs to count (e.g. 1 or 0,1)")
+    parser.add_argument("--debug", action="store_true", help="Print periodic detection summaries")
+    parser.add_argument("--log-detections", action="store_true", help="Log raw detection counts to a file")
     args = parser.parse_args()
 
     # 1. Setup Stream
@@ -530,6 +532,8 @@ def main():
     writer = None
     logger = None
     log_path = None
+    det_logger = None
+    det_log_path = None
     last_logged_total = 0
     if args.save:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -543,6 +547,12 @@ def main():
         log_path = LOGS_DIR / f"Count_{timestamp}.txt"
         logger = AsyncCountLogger(log_path)
         logger.write("timestamp,current_count,stacked_count\n")
+    if args.log_detections:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        det_log_path = LOGS_DIR / f"Detections_{timestamp}.txt"
+        det_logger = AsyncCountLogger(det_log_path)
+        det_logger.write("timestamp,total_detections,class_counts\n")
 
     # 4. Setup MQTT (Async)
     mq_host = os.environ.get('MQTT_HOST', 'mqtt')
@@ -582,6 +592,8 @@ def main():
             frame_cnt = 0
             last_mqtt_ts = time.time()
             last_mqtt_total = 0
+            last_debug_ts = time.time()
+            last_det_log_ts = time.time()
             
             while True:
                 if stream.stopped: break
@@ -590,6 +602,13 @@ def main():
 
                 # Inference & Post-Process
                 boxes, scores, classes = model.run(frame)
+
+                # Raw detection counts per class
+                det_counts = {}
+                for cid in classes:
+                    cid_int = int(cid)
+                    det_counts[cid_int] = det_counts.get(cid_int, 0) + 1
+                total_detections = sum(det_counts.values())
                 
                 # Tracking & Counting
                 tracked_objects = counter.update(boxes, classes)
@@ -635,6 +654,19 @@ def main():
                     t0 = time.time()
                     frame_cnt = 0
 
+                if args.debug:
+                    now = time.time()
+                    if (now - last_debug_ts) >= 1.0:
+                        print(f"Detections: total={total_detections} by_class={json.dumps(det_counts, sort_keys=True)}")
+                        last_debug_ts = now
+
+                if det_logger:
+                    now = time.time()
+                    if (now - last_det_log_ts) >= 3.0:
+                        stamp = datetime.now().isoformat(timespec="seconds")
+                        det_logger.write(f"{stamp},{total_detections},{json.dumps(det_counts, sort_keys=True)}\n")
+                        last_det_log_ts = now
+
                 if client:
                     now = time.time()
                     if (now - last_mqtt_ts) >= 3.0 and total_count != last_mqtt_total:
@@ -656,9 +688,12 @@ def main():
         stream.release()
         if writer: writer.release()
         if logger: logger.release()
+        if det_logger: det_logger.release()
         cv2.destroyAllWindows()
         if log_path:
-            print(f"🧾 Count log saved: {log_path}")
+            print(f"Count log saved: {log_path}")
+        if det_log_path:
+            print(f"Detection log saved: {det_log_path}")
         print("👋 Hailo Engine Shutdown.")
 
 if __name__ == "__main__":
