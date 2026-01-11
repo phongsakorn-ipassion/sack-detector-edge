@@ -138,6 +138,43 @@ class StreamLoader:
             self.cap.stop()
 
 # ==============================================================================
+# Async Count Logger
+# ==============================================================================
+class AsyncCountLogger:
+    def __init__(self, path, queue_size=256):
+        self.path = path
+        self.queue = Queue(maxsize=queue_size)
+        self.stopped = False
+        self.thread = Thread(target=self.update, args=())
+        self.thread.daemon = True
+        self.thread.start()
+
+    def write(self, line):
+        if self.queue.full():
+            return
+        self.queue.put(line)
+
+    def update(self):
+        with open(self.path, "a", encoding="utf-8") as f:
+            while not self.stopped:
+                if not self.queue.empty():
+                    line = self.queue.get()
+                    f.write(line)
+                    f.flush()
+                    self.queue.task_done()
+                else:
+                    time.sleep(0.01)
+
+            while not self.queue.empty():
+                line = self.queue.get()
+                f.write(line)
+                self.queue.task_done()
+
+    def release(self):
+        self.stopped = True
+        self.thread.join()
+
+# ==============================================================================
 # Post-Processing: NMS & Centroid Tracker
 # ==============================================================================
 class CentroidTracker:
@@ -452,6 +489,7 @@ def main():
     parser.add_argument("--save", action="store_true", help="Save output video")
     parser.add_argument("--headless", action="store_true", help="Run without GUI")
     parser.add_argument("--line", default="vertical", choices=["vertical", "horizontal"], help="Line orientation")
+    parser.add_argument("--classes", default="1", help="Comma-separated class IDs to count (e.g. 1 or 0,1)")
     args = parser.parse_args()
 
     # 1. Setup Stream
@@ -471,18 +509,30 @@ def main():
         line_points = [(0, h // 2), (w, h // 2)]
     
     # For the class = [0] is Person, class = 1] is Sack
-    #target_classes = [1] if args.headless else [0, 1]
-    target_classes = [0, 1]
+    try:
+        target_classes = [int(x) for x in args.classes.split(",") if x.strip() != ""]
+    except ValueError:
+        print(f"❌ Invalid --classes value: {args.classes}")
+        return
     counter = SackCounter(line_points, classes_to_count=target_classes)
 
     # 3. Setup Recording
     writer = None
+    logger = None
+    log_path = None
+    last_logged_total = 0
     if args.save:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         os.makedirs("records", exist_ok=True)
         video_path = f"records/Hailo_{timestamp}.mp4"
         writer = AsyncVideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (w, h))
         print(f"💾 Recording to: {video_path}")
+    if logger is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        os.makedirs("records", exist_ok=True)
+        log_path = f"records/Count_{timestamp}.txt"
+        logger = AsyncCountLogger(log_path)
+        logger.write("timestamp,current_count,stacked_count\n")
 
     # 4. Setup MQTT (Async)
     mq_host = os.environ.get('MQTT_HOST', 'mqtt')
@@ -511,6 +561,8 @@ def main():
         with HailoInference(str(args.hef), conf_threshold=args.conf) as model:
             t0 = time.time()
             frame_cnt = 0
+            last_mqtt_ts = time.time()
+            last_mqtt_total = 0
             
             while True:
                 if stream.stopped: break
@@ -525,6 +577,15 @@ def main():
 
                 # Summary text for logs and overlays
                 info = f"In: {counter.in_count} Out: {counter.out_count}"
+                total_count = counter.in_count + counter.out_count
+
+                # Async count logging (sack only)
+                if logger:
+                    delta = total_count - last_logged_total
+                    if delta > 0:
+                        stamp = datetime.now().isoformat(timespec="seconds")
+                        logger.write(f"{stamp},{delta},{total_count}\n")
+                        last_logged_total = total_count
 
                 # Annotation (only if NOT headless or saving)
                 if not args.headless or args.save:
@@ -552,17 +613,33 @@ def main():
                 if frame_cnt % 30 == 0:
                     fps = frame_cnt / (time.time() - t0)
                     print(f"Hailo-8L FPS: {fps:.2f} | {info}")
-                    if client:
-                        client.publish("sack/stats", json.dumps({"fps": round(fps, 2), "in": counter.in_count, "out": counter.out_count, "engine": "hailo"}))
                     t0 = time.time()
                     frame_cnt = 0
+
+                if client:
+                    now = time.time()
+                    if (now - last_mqtt_ts) >= 3.0 and total_count != last_mqtt_total:
+                        client.publish(
+                            "sack/stats",
+                            json.dumps({
+                                "in": counter.in_count,
+                                "out": counter.out_count,
+                                "total": total_count,
+                                "engine": "hailo"
+                            })
+                        )
+                        last_mqtt_ts = now
+                        last_mqtt_total = total_count
 
     except KeyboardInterrupt:
         print("Stopping...")
     finally:
         stream.release()
         if writer: writer.release()
+        if logger: logger.release()
         cv2.destroyAllWindows()
+        if log_path:
+            print(f"🧾 Count log saved: {log_path}")
         print("👋 Hailo Engine Shutdown.")
 
 if __name__ == "__main__":
