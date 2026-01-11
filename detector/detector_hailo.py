@@ -233,13 +233,29 @@ class HailoInference:
         
         # Get input dimensions
         self.input_info = self.hef.get_input_vstream_infos()[0]
-        if hasattr(self.input_info.shape, 'height'):
-            self.input_shape = (self.input_info.shape.height, self.input_info.shape.width)
-        else:
-            # Handle case where shape is a tuple (height, width, features)
-            self.input_shape = (self.input_info.shape[0], self.input_info.shape[1])
+        print(f"🔍 Hailo Input: {self.input_info.name} | Shape: {self.input_info.shape} | Format: {self.input_info.format.type}")
         
-        # Initialize the infer pipeline once (performance)
+        # Determine height/width (handle both object type and tuple)
+        if hasattr(self.input_info.shape, 'height'):
+            self.input_height = self.input_info.shape.height
+            self.input_width = self.input_info.shape.width
+        else:
+            # Usually (Batch, H, W, C) or (H, W, C)
+            if len(self.input_info.shape) == 4:
+                self.input_height, self.input_width = self.input_info.shape[1:3]
+            else:
+                self.input_height, self.input_width = self.input_info.shape[0:2]
+        
+        self.input_shape = (self.input_height, self.input_width)
+        
+        # Detect if model is "Raw" (many outputs) or "NMS" (single detection output)
+        self.output_infos = self.hef.get_output_vstream_infos()
+        self.is_nms_model = any("nms" in info.name.lower() or "detection" in info.name.lower() for info in self.output_infos)
+        print(f"📊 Outputs found: {len(self.output_infos)} | NMS Included: {self.is_nms_model}")
+        for info in self.output_infos:
+            print(f"  - {info.name}: {info.shape}")
+
+        # Initialize the infer pipeline
         self.infer_pipeline = InferVStreams(self.network_group, self.input_vstreams_params, self.output_vstreams_params)
 
     def __enter__(self):
@@ -256,8 +272,24 @@ class HailoInference:
         return resized
 
     def run(self, frame):
-        input_data = {self.input_info.name: self.preprocess(frame)}
-        outputs = self.infer_pipeline.infer(input_data)
+        # Resize to model input size
+        resized = self.preprocess(frame)
+        
+        # Prepare input dict. Ensure dtype and shape match.
+        # We try to pass as is first, then expanded if it fails.
+        input_data = {self.input_info.name: resized}
+        
+        try:
+            # Explicitly set batch_size=1 if possible
+            outputs = self.infer_pipeline.infer(input_data)
+        except Exception as e:
+            # If 3D fails, try 4D (Batch size 1)
+            if "match the frame count" in str(e):
+                input_data[self.input_info.name] = np.expand_dims(resized, axis=0)
+                outputs = self.infer_pipeline.infer(input_data)
+            else:
+                raise e
+                
         return self.postprocess(outputs, frame.shape)
 
     def postprocess(self, outputs, orig_shape):
