@@ -1,3 +1,10 @@
+# Pi-specific requirements for Hailo detector
 picamera2
 av==12.3.0
 scipy>=1.13.0
+
+# Core dependencies (shared with requirements.txt)
+opencv-python
+numpy<2.0.0
+paho-mqtt
+shapely>=2.0.0
