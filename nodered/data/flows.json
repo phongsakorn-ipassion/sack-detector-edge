@@ -53,7 +53,7 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 150,
+        "x": 270,
         "y": 140,
         "wires": [
             [
@@ -73,7 +73,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 440,
+        "x": 560,
         "y": 140,
         "wires": [
             [
@@ -99,7 +99,7 @@
         "targetType": "msg",
         "statusVal": "device_key",
         "statusType": "msg",
-        "x": 690,
+        "x": 810,
         "y": 60,
         "wires": []
     },
@@ -124,13 +124,13 @@
                 "tot": "jsonata"
             }
         ],
-        "x": 740,
+        "x": 860,
         "y": 300,
         "wires": [
             [
                 "mqtt_out_dlq",
                 "debug_dlq",
-                "b7897bb1fc4c07a3"
+                "func_prep_dlq"
             ]
         ]
     },
@@ -148,7 +148,7 @@
         "correl": "",
         "expiry": "",
         "broker": "mqtt_broker_local",
-        "x": 970,
+        "x": 1110,
         "y": 360,
         "wires": []
     },
@@ -165,8 +165,8 @@
         "targetType": "msg",
         "statusVal": "payload",
         "statusType": "auto",
-        "x": 980,
-        "y": 420,
+        "x": 1120,
+        "y": 300,
         "wires": []
     },
     {
@@ -177,7 +177,7 @@
         "sqlquery": "msg.topic",
         "sql": "",
         "name": "Upsert into devices",
-        "x": 970,
+        "x": 1090,
         "y": 140,
         "wires": [
             []
@@ -191,7 +191,7 @@
         "sqlquery": "msg.topic",
         "sql": "",
         "name": "Insert telemetry (dedupe-safe)",
-        "x": 1010,
+        "x": 1130,
         "y": 200,
         "wires": [
             []
@@ -201,7 +201,7 @@
         "id": "666076623457346d",
         "type": "function",
         "z": "b8f5c6bb9e8e1d3a",
-        "name": "Prep telemetry params",
+        "name": "Prep Telemetry params",
         "func": "const p = msg.payload;\nconst n = p.network || {};\n\n// Helper to sanitize strings for SQLite (escape single quotes)\nconst safe = (v) => (v === null || v === undefined) ? \"NULL\" : `'${String(v).replace(/'/g, \"''\")}'`;\n// Helper for numbers\nconst num = (v) => (v === null || v === undefined || isNaN(v)) ? \"NULL\" : Number(v);\n\nconst rawJson = JSON.stringify(p);\n\n// Manual SQL Construction (Bypassing binding issues)\nmsg.topic = `INSERT INTO device_telemetry (\n  device_id, event_id, ts,\n  cpu_percent, cpu_temp_c, gpu_temp_c,\n  mem_total_mb, mem_used_mb, mem_percent,\n  disk_total_gb, disk_used_gb, disk_percent,\n  serial_id, mac_address, inet, inet6, ether,\n  uptime_s, raw_json\n) VALUES (\n  ${safe(p.device_id)}, ${safe(p.event_id)}, ${safe(p.ts)},\n  ${num(p.cpu.percent)}, ${num(p.cpu.temp_c)}, ${num(p.gpu ? p.gpu.temp_c : null)},\n  ${num(p.memory.total_mb)}, ${num(p.memory.used_mb)}, ${num(p.memory.percent)},\n  ${num(p.disk.total_gb)}, ${num(p.disk.used_gb)}, ${num(p.disk.percent)},\n  ${safe(n.serial_id)}, ${safe(n.mac_address)}, ${safe(n.inet)}, ${safe(n.inet6)}, ${safe(n.ether)},\n  ${num(p.uptime_s)}, ${safe(rawJson)}\n) ON CONFLICT(event_id) DO NOTHING;`;\n\n// Clear params to ensure raw execution\ndelete msg.params;\ndelete msg.payload;\n\n// node.warn(\"MANUAL SQL GENERATED\");\n\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
@@ -209,7 +209,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 720,
+        "x": 850,
         "y": 200,
         "wires": [
             [
@@ -221,7 +221,7 @@
         "id": "func_prep_devices",
         "type": "function",
         "z": "b8f5c6bb9e8e1d3a",
-        "name": "Prep devices params",
+        "name": "Prep Devices params",
         "func": "const p = msg.payload;\nconst n = p.network || {};\n\nconst safe = (v) => (v === null || v === undefined) ? \"NULL\" : `'${String(v).replace(/'/g, \"''\")}'`;\n\nmsg.topic = `INSERT INTO devices (\n  device_id, updated_on, mac_address, inet_last, inet6_last\n) VALUES (\n  ${safe(p.device_id)},\n  STRFTIME('%Y-%m-%dT%H:%M:%fZ','now'),\n  ${safe(n.mac_address)},\n  ${safe(n.inet)},\n  ${safe(n.inet6)}\n) ON CONFLICT(device_id) DO UPDATE SET\n  updated_on  = STRFTIME('%Y-%m-%dT%H:%M:%fZ','now'),\n  mac_address = COALESCE(excluded.mac_address, devices.mac_address),\n  inet_last   = COALESCE(excluded.inet_last, devices.inet_last),\n  inet6_last  = COALESCE(excluded.inet6_last, devices.inet6_last);`;\n\n\nreturn msg;",
         "outputs": 1,
         "timeout": "",
@@ -229,7 +229,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 720,
+        "x": 840,
         "y": 140,
         "wires": [
             [
@@ -238,15 +238,35 @@
         ]
     },
     {
+        "id": "func_prep_dlq",
+        "type": "function",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "Prep DLQ params",
+        "func": "const p = msg.payload || {};\nconst reason = p.reason || \"unknown\";\nconst topic = msg.topic || \"unknown\";\nconst raw = p.original ? JSON.stringify(p.original) : \"{}\";\n\nconst safe = (v) => (v === null || v === undefined) ? \"NULL\" : `'${String(v).replace(/'/g, \"''\")}'`;\n\nmsg.topic = `INSERT INTO device_telemetry_dlq (\n  reason, topic, raw_payload\n) VALUES (\n  ${safe(reason)},\n  ${safe(topic)},\n  ${safe(raw)}\n);`;\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1130,
+        "y": 440,
+        "wires": [
+            [
+                "b7897bb1fc4c07a3"
+            ]
+        ]
+    },
+    {
         "id": "b7897bb1fc4c07a3",
         "type": "sqlite",
         "z": "b8f5c6bb9e8e1d3a",
         "mydb": "13d9126a6ca72f4a",
-        "sqlquery": "fixed",
-        "sql": "INSERT INTO device_telemetry_dlq (\n    reason, \n    topic, \n    raw_payload\n) \nVALUES (\n    msg.payload.reason, \n    msg.topic, \n    JSON.stringify(msg.payload.original)\n);",
+        "sqlquery": "msg.topic",
+        "sql": "",
         "name": "DLQ insert",
-        "x": 970,
-        "y": 480,
+        "x": 1350,
+        "y": 440,
         "wires": [
             []
         ]
