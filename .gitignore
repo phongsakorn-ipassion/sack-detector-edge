@@ -15,6 +15,12 @@ detector/records/
 output/
 *.mp4
 *.avi
+debug_validator.js
+
+# Services Data (Runtime)
+mosquitto/data/
+mosquitto/log/
+sqlite/data/
 
 # Docker / Environment
 .env
