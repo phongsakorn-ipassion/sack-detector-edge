@@ -35,6 +35,12 @@
         "sessionExpiry": ""
     },
     {
+        "id": "13d9126a6ca72f4a",
+        "type": "sqlitedb",
+        "db": "/data/sqlite/app.db",
+        "mode": "RWC"
+    },
+    {
         "id": "a1b2c3d4e5f6a7b8",
         "type": "mqtt in",
         "z": "b8f5c6bb9e8e1d3a",
@@ -71,7 +77,9 @@
         "y": 140,
         "wires": [
             [
-                "debug_ok"
+                "debug_ok",
+                "666076623457346d",
+                "func_prep_devices"
             ],
             [
                 "dlq_topic_set"
@@ -91,8 +99,8 @@
         "targetType": "msg",
         "statusVal": "device_key",
         "statusType": "msg",
-        "x": 700,
-        "y": 120,
+        "x": 690,
+        "y": 60,
         "wires": []
     },
     {
@@ -116,12 +124,13 @@
                 "tot": "jsonata"
             }
         ],
-        "x": 720,
-        "y": 180,
+        "x": 740,
+        "y": 300,
         "wires": [
             [
                 "mqtt_out_dlq",
-                "debug_dlq"
+                "debug_dlq",
+                "b7897bb1fc4c07a3"
             ]
         ]
     },
@@ -139,8 +148,8 @@
         "correl": "",
         "expiry": "",
         "broker": "mqtt_broker_local",
-        "x": 940,
-        "y": 180,
+        "x": 970,
+        "y": 360,
         "wires": []
     },
     {
@@ -156,8 +165,90 @@
         "targetType": "msg",
         "statusVal": "payload",
         "statusType": "auto",
-        "x": 960,
-        "y": 240,
+        "x": 980,
+        "y": 420,
         "wires": []
+    },
+    {
+        "id": "52a7c7c8188e73ba",
+        "type": "sqlite",
+        "z": "b8f5c6bb9e8e1d3a",
+        "mydb": "13d9126a6ca72f4a",
+        "sqlquery": "msg.topic",
+        "sql": "",
+        "name": "Upsert into devices",
+        "x": 970,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f720d03b4fba0e63",
+        "type": "sqlite",
+        "z": "b8f5c6bb9e8e1d3a",
+        "mydb": "13d9126a6ca72f4a",
+        "sqlquery": "msg.topic",
+        "sql": "",
+        "name": "Insert telemetry (dedupe-safe)",
+        "x": 1010,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "666076623457346d",
+        "type": "function",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "Prep telemetry params",
+        "func": "const p = msg.payload;\nconst n = p.network || {};\n\n// Helper to sanitize strings for SQLite (escape single quotes)\nconst safe = (v) => (v === null || v === undefined) ? \"NULL\" : `'${String(v).replace(/'/g, \"''\")}'`;\n// Helper for numbers\nconst num = (v) => (v === null || v === undefined || isNaN(v)) ? \"NULL\" : Number(v);\n\nconst rawJson = JSON.stringify(p);\n\n// Manual SQL Construction (Bypassing binding issues)\nmsg.topic = `INSERT INTO device_telemetry (\n  device_id, event_id, ts,\n  cpu_percent, cpu_temp_c, gpu_temp_c,\n  mem_total_mb, mem_used_mb, mem_percent,\n  disk_total_gb, disk_used_gb, disk_percent,\n  serial_id, mac_address, inet, inet6, ether,\n  uptime_s, raw_json\n) VALUES (\n  ${safe(p.device_id)}, ${safe(p.event_id)}, ${safe(p.ts)},\n  ${num(p.cpu.percent)}, ${num(p.cpu.temp_c)}, ${num(p.gpu ? p.gpu.temp_c : null)},\n  ${num(p.memory.total_mb)}, ${num(p.memory.used_mb)}, ${num(p.memory.percent)},\n  ${num(p.disk.total_gb)}, ${num(p.disk.used_gb)}, ${num(p.disk.percent)},\n  ${safe(n.serial_id)}, ${safe(n.mac_address)}, ${safe(n.inet)}, ${safe(n.inet6)}, ${safe(n.ether)},\n  ${num(p.uptime_s)}, ${safe(rawJson)}\n) ON CONFLICT(event_id) DO NOTHING;`;\n\n// Clear params to ensure raw execution\ndelete msg.params;\ndelete msg.payload;\n\n// node.warn(\"MANUAL SQL GENERATED\");\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 720,
+        "y": 200,
+        "wires": [
+            [
+                "f720d03b4fba0e63"
+            ]
+        ]
+    },
+    {
+        "id": "func_prep_devices",
+        "type": "function",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "Prep devices params",
+        "func": "const p = msg.payload;\nconst n = p.network || {};\n\nconst safe = (v) => (v === null || v === undefined) ? \"NULL\" : `'${String(v).replace(/'/g, \"''\")}'`;\n\nmsg.topic = `INSERT INTO devices (\n  device_id, updated_on, mac_address, inet_last, inet6_last\n) VALUES (\n  ${safe(p.device_id)},\n  STRFTIME('%Y-%m-%dT%H:%M:%fZ','now'),\n  ${safe(n.mac_address)},\n  ${safe(n.inet)},\n  ${safe(n.inet6)}\n) ON CONFLICT(device_id) DO UPDATE SET\n  updated_on  = STRFTIME('%Y-%m-%dT%H:%M:%fZ','now'),\n  mac_address = COALESCE(excluded.mac_address, devices.mac_address),\n  inet_last   = COALESCE(excluded.inet_last, devices.inet_last),\n  inet6_last  = COALESCE(excluded.inet6_last, devices.inet6_last);`;\n\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 720,
+        "y": 140,
+        "wires": [
+            [
+                "52a7c7c8188e73ba"
+            ]
+        ]
+    },
+    {
+        "id": "b7897bb1fc4c07a3",
+        "type": "sqlite",
+        "z": "b8f5c6bb9e8e1d3a",
+        "mydb": "13d9126a6ca72f4a",
+        "sqlquery": "fixed",
+        "sql": "INSERT INTO device_telemetry_dlq (\n    reason, \n    topic, \n    raw_payload\n) \nVALUES (\n    msg.payload.reason, \n    msg.topic, \n    JSON.stringify(msg.payload.original)\n);",
+        "name": "DLQ insert",
+        "x": 970,
+        "y": 480,
+        "wires": [
+            []
+        ]
     }
 ]

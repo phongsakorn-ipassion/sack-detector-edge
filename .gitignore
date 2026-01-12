@@ -21,6 +21,13 @@ debug_validator.js
 mosquitto/data/
 mosquitto/log/
 sqlite/data/
+mosquitto/data/mosquitto.db
+
+# Node-RED Runtime
+nodered/data/node_modules/
+nodered/data/.npm/
+nodered/data/.config.nodes.json
+nodered/data/*.backup
 
 # Docker / Environment
 .env
