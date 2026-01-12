@@ -202,18 +202,21 @@ def main():
     # =========================
     # MQTT Setup
     # =========================
-    mq_host = os.environ.get('MQTT_HOST', 'mqtt')
-    mq_port = int(os.environ.get('MQTT_PORT', 1883))
-    mq_user = os.environ.get('MQTT_USER')
-    mq_pass = os.environ.get('MQTT_PASS')
-    client = None
+    # connect to local MQTT broker
+    mq_host: str = os.environ.get('MQTT_HOST', 'localhost')
+    mq_port: int = int(os.environ.get('MQTT_PORT', 1883))
+    mq_user: str | None = os.environ.get('MQTT_USER')
+    mq_pass: str | None = os.environ.get('MQTT_PASS')
+    client: mqtt.Client | None = None
     
     try:
+        # Initialize MQTT Client with clean session
         client = mqtt.Client()
         if mq_user and mq_pass:
             client.username_pw_set(mq_user, mq_pass)
             
         # Use connect_async to prevent blocking the camera startup if MQTT is down
+        # This is critical for Edge devices where network might be flaky on boot
         client.connect_async(mq_host, mq_port, 60)
         client.loop_start() 
         print(f"📡 MQTT Initialized (Async): {mq_host}:{mq_port}")

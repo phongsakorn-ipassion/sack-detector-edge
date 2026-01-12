@@ -12,6 +12,7 @@ This is a minimal Docker image scaffold based on `ultralytics/ultralytics:latest
 │   ├── models/         # YOLO detection models (.onnx / .pt)
 │   ├── requirements.txt# Python dependencies
 │   └── requirements-pi.txt # Pi-specific dependencies (e.g. Picamera2)
+├── device/             # Device Telemetry Service (System Stats)
 ├── mosquitto/          # Local MQTT Broker (Mosquitto)
 ├── nodered/            # Dashboard and Workflows (Node-RED)
 ├── scripts/            # Environment setup and utility scripts

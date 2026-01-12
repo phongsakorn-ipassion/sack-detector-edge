@@ -1,0 +1,163 @@
+[
+    {
+        "id": "b8f5c6bb9e8e1d3a",
+        "type": "tab",
+        "label": "Device Telemetry",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "mqtt_broker_local",
+        "type": "mqtt-broker",
+        "name": "localhost",
+        "broker": "mqtt",
+        "port": "1883",
+        "clientid": "nodered-local",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "30",
+        "cleansession": false,
+        "autoUnsubscribe": true,
+        "birthTopic": "nodered/status",
+        "birthQos": "1",
+        "birthPayload": "{\"status\":\"online\"}",
+        "birthMsg": {},
+        "closeTopic": "nodered/status",
+        "closeQos": "1",
+        "closePayload": "{\"status\":\"offline\"}",
+        "closeMsg": {},
+        "willTopic": "nodered/status",
+        "willQos": "1",
+        "willPayload": "{\"status\":\"offline\"}",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "a1b2c3d4e5f6a7b8",
+        "type": "mqtt in",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "MQTT In: device telemetry",
+        "topic": "device/telemetry",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker_local",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 140,
+        "wires": [
+            [
+                "validate_node"
+            ]
+        ]
+    },
+    {
+        "id": "validate_node",
+        "type": "function",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "Validate + normalize",
+        "func": "const p = msg.payload;\n\n// 1) Basic payload checks\nif (!p || typeof p !== \"object\") {\n  msg.dlq_reason = \"payload_not_object\";\n  return [null, msg];\n}\n\n// 2) Resolve device_id (must equal serial_id)\n// Priority: payload.device_id -> payload.network.serial_id -> payload.network.mac_address -> \"unknown\"\nconst net = p.network || {};\nconst deviceId =\n  p.device_id ||\n  net.serial_id ||\n  net.mac_address ||\n  \"unknown\";\n\np.device_id = deviceId;\np.network = net;\np.network.serial_id = deviceId;  // IMPORTANT: enforce same value\n\n// 3) Required keys (after fix)\nconst requiredTop = [\"device_id\", \"event_id\", \"ts\", \"cpu\", \"memory\", \"disk\", \"network\", \"uptime_s\"];\nfor (const k of requiredTop) {\n  if (p[k] === undefined || p[k] === null) {\n    msg.dlq_reason = `missing_${k}`;\n    return [null, msg];\n  }\n}\nif (p.device_id === \"unknown\") {\n  msg.dlq_reason = \"device_id_unknown\";\n  return [null, msg];\n}\n\n// 4) Normalize numeric types\np.cpu.percent = Number(p.cpu.percent);\nif (p.cpu.temp_c !== null && p.cpu.temp_c !== undefined) p.cpu.temp_c = Number(p.cpu.temp_c);\n\nif (p.gpu && p.gpu.temp_c !== null && p.gpu.temp_c !== undefined) p.gpu.temp_c = Number(p.gpu.temp_c);\n\np.memory.total_mb = Number(p.memory.total_mb);\np.memory.used_mb  = Number(p.memory.used_mb);\np.memory.percent  = Number(p.memory.percent);\n\np.disk.total_gb = Number(p.disk.total_gb);\np.disk.used_gb  = Number(p.disk.used_gb);\np.disk.percent  = Number(p.disk.percent);\n\np.uptime_s = Number(p.uptime_s);\n\n// 5) Convenience key for DB joins / routing\nmsg.device_key = p.device_id;\nmsg.payload = p;\n\nreturn [msg, null]; // output1 OK, output2 DLQ",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 140,
+        "wires": [
+            [
+                "debug_ok"
+            ],
+            [
+                "dlq_topic_set"
+            ]
+        ]
+    },
+    {
+        "id": "debug_ok",
+        "type": "debug",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "OK telemetry",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "device_key",
+        "statusType": "msg",
+        "x": 700,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "dlq_topic_set",
+        "type": "change",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "DLQ topic + payload wrap",
+        "rules": [
+            {
+                "t": "set",
+                "p": "topic",
+                "pt": "msg",
+                "to": "dlq/device_telemetry",
+                "tot": "str"
+            },
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "{\"reason\": $$.dlq_reason, \"original\": $$.payload}",
+                "tot": "jsonata"
+            }
+        ],
+        "x": 720,
+        "y": 180,
+        "wires": [
+            [
+                "mqtt_out_dlq",
+                "debug_dlq"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_out_dlq",
+        "type": "mqtt out",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "Publish DLQ",
+        "topic": "",
+        "qos": "1",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt_broker_local",
+        "x": 940,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "debug_dlq",
+        "type": "debug",
+        "z": "b8f5c6bb9e8e1d3a",
+        "name": "DLQ telemetry",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 960,
+        "y": 240,
+        "wires": []
+    }
+]

@@ -46,6 +46,9 @@ services:
     privileged: true
     volumes:
       - /run/udev:/run/udev:ro
+  device:
+    volumes:
+      - /sys/class/thermal:/sys/class/thermal:ro
 EOF
 
   # Install system dependencies on Linux (required for building some wheels)
@@ -102,7 +105,7 @@ echo "Installing Python dependencies into virtual environment..."
 
 # Install common requirement
 if [ -f "$root_dir/detector/requirements.txt" ]; then
-    echo "Installing base requirements..."
+    echo "Installing base requirements (detector)..."
     run_pip -r "$root_dir/detector/requirements.txt"
 fi
 
@@ -110,6 +113,12 @@ fi
 if [ "$OS" != "Darwin" ] && [ -f "$root_dir/detector/requirements-pi.txt" ]; then
     echo "Installing Pi requirements..."
     run_pip -r "$root_dir/detector/requirements-pi.txt"
+fi
+
+# Install Device Service requirements (for local running)
+if [ -f "$root_dir/device/requirements.txt" ]; then
+    echo "Installing Device Service requirements..."
+    run_pip -r "$root_dir/device/requirements.txt"
 fi
 
 mkdir -p \
@@ -120,16 +129,18 @@ mkdir -p \
   "$root_dir/sqlite/data"
 
 if [ ! -f "$root_dir/mosquitto/config/mosquitto.conf" ]; then
-  cat > "$root_dir/mosquitto/config/mosquitto.conf" <<'EOF'
+cat > "$root_dir/mosquitto/config/mosquitto.conf" <<'EOF'
 persistence true
 persistence_location /mosquitto/data/
 log_dest stdout
 
 listener 1883
 protocol mqtt
+allow_anonymous true
 
 listener 9001
 protocol websockets
+allow_anonymous true
 EOF
 fi
 

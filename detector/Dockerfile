@@ -45,4 +45,4 @@ RUN if [ "$BUILD_ENV" = "pi" ]; then pip install -r /tmp/requirements-pi.txt --b
 COPY . /app
 
 # Change this to your real entrypoint when code is ready.
-CMD ["python", "-u", "detector.py", "--source", "picamera0", "--headless"]
+#CMD ["python", "-u", "detector.py", "--source", "picamera0", "--headless"]

@@ -74,12 +74,12 @@ python detector_hailo.py --hef models/detection.hef --source picamera0 --headles
 | `--source` | `picamera0` | Input source. Options: `usbX`, `picameraX`, `/path/to/video.mp4` |
 | `--conf` | `0.35` | Confidence threshold (0.0 - 1.0). |
 | `--resolution` | `640x480` | Capture resolution (e.g., `1280x720`). |
-| `--save` | `False` | Enable video recording to `records/`. |
+| `--save` | `False` | Enable video recording to `records/videos`. |
 | `--headless` | `False` | Run without GUI window (Recommended for Pi). |
 | `--line` | `vertical` | Region line orientation. Options: `vertical`, `horizontal`. |
 | `--classes` | `1` | Comma-separated class IDs to count (e.g., `1` or `0,1`). |
 | `--debug` | `False` | Print periodic detection summaries (raw detections per class). |
-| `--log-detections` | `False` | Write raw detection counts to a log file. |
+| `--log-detections` | `False` | Write raw detection counts to a log file to `records/logs`. |
 
 ## 5. Hailo Counting + Logs
 
