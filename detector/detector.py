@@ -93,6 +93,10 @@ class StreamLoader:
         elif os.path.isfile(source):
             self.source_type = "video"
             self.cap = cv2.VideoCapture(source)
+
+        elif source == "mock":
+            self.source_type = "mock"
+            print("⚠️ Using MOCK source (generating items)")
             
         else:
             raise ValueError(f"Unknown source: {source}")
@@ -119,13 +123,16 @@ class StreamLoader:
                 self.frame = frame
                 self.grabbed = True
                 
-            elif self.source_type == "picamera":
-                # Picamera2 capture is simplified here. 
-                # For high performance, using request_sequence is better, 
-                # but capture_array is safe for basic usage.
-                frame = self.cap.capture_array()
                 self.frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
                 self.grabbed = True
+                
+            elif self.source_type == "mock":
+                # Generate black frame
+                self.frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+                # Maybe draw a moving circle?
+                cv2.circle(self.frame, (int(time.time()*100 % self.width), self.height//2), 20, (0,255,0), -1)
+                self.grabbed = True
+                time.sleep(0.03) # ~30fps 
             
             # For file video execution speed control could be added here
             if self.source_type == "video":
@@ -141,6 +148,8 @@ class StreamLoader:
             self.cap.release()
         elif self.source_type == "picamera":
             self.cap.stop()
+        elif self.source_type == "mock":
+            pass
 
 # =========================
 # CLI Arguments
